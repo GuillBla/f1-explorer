@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+/* ===== F1 Explorer design tokens (shared by all modules) ===== */
+@theme {
+  --font-sans: "Titillium Web", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-bg: #0b0d12;          /* page background */
+  --color-surface: #141821;     /* cards */
+  --color-surface-2: #1c2230;   /* raised / hover */
+  --color-border: #2a3142;
+  --color-text: #e8ebf2;
+  --color-muted: #8b93a7;
+
+  --color-f1: #e10600;          /* brand red */
+  --color-accent: #00d2be;      /* teal accent (data highlights) */
+  --color-warn: #ffb800;
+  --color-ok: #2ecc71;
+  --color-info: #3fa9f5;
+
+  /* tyre compounds */
+  --color-tyre-soft: #ff3333;
+  --color-tyre-medium: #ffd700;
+  --color-tyre-hard: #f0f0f0;
+  --color-tyre-inter: #39b54a;
+  --color-tyre-wet: #0072c6;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: var(--color-f1); color: white; }
