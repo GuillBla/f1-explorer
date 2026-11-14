@@ -1,0 +1,56 @@
+name: Transcribe team radios
+# Transcribes the team radios of finished Races/Sprints with Whisper (CPU) and commits the JSON
+# to public/data/live/radio/. Each run handles at most MAX_SESSIONS sessions (~30 min each),
+# so the season backlog is caught up over a few daily runs.
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+    inputs:
+      max_sessions:
+        description: Nombre max de sessions à transcrire
+        default: '3'
+      session_keys:
+        description: Forcer des session_key (séparées par des virgules, écrase l'existant)
+        default: ''
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: radio-transcripts
+  cancel-in-progress: false
+jobs:
+  transcribe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scripts/radio/requirements.txt
+      - run: pip install -r scripts/radio/requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: whisper-large-v3-turbo
+      - name: Transcribe
+        env:
+          MAX_SESSIONS: ${{ inputs.max_sessions || '3' }}
+          SESSION_KEYS: ${{ inputs.session_keys }}
+          MODEL: large-v3-turbo
+        run: python scripts/radio/transcribe_radios.py
+      - name: Commit and redeploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git add public/data/live/radio
+          if git diff --cached --quiet; then echo "No new transcript"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Add team radio transcripts"
+          git pull --rebase
+          git push
+          # pushes made with GITHUB_TOKEN don't trigger workflows: start the Pages deploy explicitly
+          gh workflow run deploy.yml --ref main

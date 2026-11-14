@@ -180,3 +180,27 @@ export function useCarData(lap: Lap | undefined) {
     staleTime: Infinity,
   })
 }
+
+export interface RadioTranscripts {
+  session_key: number; model: string; generated_at: string
+  items: Record<string, { text: string; lang: string }>
+}
+
+/**
+ * Whisper transcripts produced by the "Transcribe team radios" GitHub Action
+ * (public/data/live/radio/<session_key>.json). Missing file → null (not transcribed yet).
+ */
+export function useRadioTranscripts() {
+  const { session, polling } = useLive()
+  return useQuery({
+    queryKey: ['live', 'radio-transcripts', session.session_key],
+    queryFn: async (): Promise<RadioTranscripts | null> => {
+      const res = await fetch(`./data/live/radio/${session.session_key}.json`)
+      if (!res.ok) return null
+      try { return (await res.json()) as RadioTranscripts } catch { return null }
+    },
+    staleTime: Infinity,
+    retry: false,
+    enabled: !polling,
+  })
+}

@@ -4,7 +4,7 @@ import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, X
 import { CloudRain, Droplets, Gauge, Thermometer, Wind } from 'lucide-react'
 import { Card, ErrorState, Loader } from '@/components/ui'
 import { useLive } from '../context'
-import { useRaceControl, useTeamRadio, useWeather } from '../hooks/useOpenF1'
+import { useRaceControl, useRadioTranscripts, useTeamRadio, useWeather } from '../hooks/useOpenF1'
 import { useViewTime } from '../hooks/useViewTime'
 import { latestAt, sortByDate } from '../lib/derive'
 import type { RaceControlX } from '../lib/api'
@@ -159,6 +159,7 @@ function Radios() {
   const { driverMap, range } = useLive()
   const t = useViewTime(1000)
   const r = useTeamRadio()
+  const tr = useRadioTranscripts().data
   const [limit, setLimit] = useState(15)
   const list = useMemo(
     () => sortByDate(r.data ?? []).filter((x) => ms(x.date) >= range.start - 3_600_000 && ms(x.date) <= t).reverse(),
@@ -177,6 +178,7 @@ function Radios() {
                 <span className="font-mono text-xs text-muted">{hhmm(ms(x.date))}</span>
               </div>
               <audio controls preload="none" src={x.recording_url} className="h-8 w-full" />
+              <Transcript entry={tr?.items[x.recording_url]} />
             </li>
           ))}
           {list.length > limit && (
@@ -186,6 +188,21 @@ function Radios() {
           )}
         </ul>
       )}
+      {tr && list.length > 0 && (
+        <p className="mt-3 text-[11px] leading-snug text-muted">
+          Transcriptions automatiques (Whisper), langue d’origine : elles peuvent contenir des erreurs.
+        </p>
+      )}
     </Card>
+  )
+}
+
+function Transcript({ entry }: { entry?: { text: string; lang: string } }) {
+  if (!entry) return null
+  if (!entry.text) return <p className="mt-1.5 text-xs italic text-muted">(inaudible)</p>
+  return (
+    <p className="mt-1.5 border-l-2 border-f1/60 pl-2 text-sm leading-snug" lang={entry.lang}>
+      « {entry.text} »
+    </p>
   )
 }
