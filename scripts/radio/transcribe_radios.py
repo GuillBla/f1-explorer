@@ -134,6 +134,9 @@ def transcribe_session(model, s):
                 continue
             items[url] = {"text": text, "lang": info.language}
             print(f"  {key} #{i + 1}/{len(radios)} [{info.language}] {text[:80]}")
+    if len(items) < len(radios) / 2:
+        # e.g. livetiming.formula1.com refusing the downloads (403): keep the session for a later run
+        raise RuntimeError(f"session {key}: only {len(items)}/{len(radios)} radios transcribed, nothing written")
     os.makedirs(OUT, exist_ok=True)
     doc = {
         "session_key": key,
