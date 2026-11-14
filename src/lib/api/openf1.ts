@@ -69,5 +69,5 @@ export const openf1 = {
 }
 
 export const TYRE_COLORS: Record<string, string> = {
-  SOFT: '#ff3333', MEDIUM: '#ffd700', HARD: '#f0f0f0', INTERMEDIATE: '#39b54a', WET: '#0072c6',
+  SOFT: '#ff3333', MEDIUM: '#ffd700', HARD: 'var(--color-tyre-hard)', INTERMEDIATE: '#39b54a', WET: '#0072c6',
 }

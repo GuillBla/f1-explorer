@@ -11,10 +11,8 @@ export function PageHeader({ title, subtitle, actions }: { title: ReactNode; sub
   return (
     <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-3xl md:text-4xl font-black tracking-tight flex items-center gap-3">
-          <span className="inline-block w-1.5 h-8 bg-f1 -skew-x-12" />
-          {title}
-        </h1>
+        <h1 className="font-wide text-3xl md:text-4xl font-extrabold tracking-tight text-balance">{title}</h1>
+        <span aria-hidden className="mt-3 block h-[3px] w-12 bg-f1" />
         {subtitle && <p className="mt-2 text-muted max-w-3xl">{subtitle}</p>}
       </div>
       {actions}
@@ -24,7 +22,7 @@ export function PageHeader({ title, subtitle, actions }: { title: ReactNode; sub
 
 export function Card({ children, className, title }: { children: ReactNode; className?: string; title?: ReactNode }) {
   return (
-    <section className={clsx('rounded-xl border border-border bg-surface p-4', className)}>
+    <section className={clsx('rounded border border-border bg-surface p-4', className)}>
       {title && <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted">{title}</h3>}
       {children}
     </section>
@@ -43,11 +41,11 @@ export function Loader({ label = 'Chargement…' }: { label?: string }) {
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const msg = error instanceof Error ? error.message : String(error)
   return (
-    <div className="rounded-xl border border-f1/40 bg-f1/10 p-4 text-sm">
+    <div className="rounded border border-f1/40 bg-f1/10 p-4 text-sm">
       <p className="font-semibold text-f1">Impossible de charger les données</p>
       <p className="mt-1 text-muted">{msg}</p>
       {onRetry && (
-        <button onClick={onRetry} className="mt-3 rounded-md bg-f1 px-3 py-1 font-semibold text-white">
+        <button onClick={onRetry} className="mt-3 rounded-full bg-f1 px-4 py-1.5 font-semibold text-on-f1">
           Réessayer
         </button>
       )}

@@ -1,37 +1,95 @@
 @import "tailwindcss";
 
-/* ===== F1 Explorer design tokens (shared by all modules) ===== */
-@theme {
-  --font-sans: "Titillium Web", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+/* Tailwind's `dark:` variant follows the site theme (data-theme on <html>, or the OS setting). */
+@custom-variant dark {
+  [data-theme="dark"] & { @slot; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) & { @slot; } }
+}
 
-  --color-bg: #0b0d12;          /* page background */
-  --color-surface: #141821;     /* cards */
-  --color-surface-2: #1c2230;   /* raised / hover */
-  --color-border: #2a3142;
-  --color-text: #e8ebf2;
-  --color-muted: #8b93a7;
+/* ===== F1 Explorer design tokens — "Paddock" (light by default) =====
+   Every module reads these through Tailwind classes (bg-surface, text-muted…) or var(--color-*),
+   so switching the values below re-themes the whole site. */
+@theme {
+  --font-sans: "Archivo", system-ui, sans-serif;
+  --font-display: "Archivo", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /* Archivo 900 is too heavy in the wide cut: cap "font-black" at 800 */
+  --font-weight-black: 800;
+
+  --color-bg: #f5f5f7;          /* page background */
+  --color-surface: #ffffff;     /* cards */
+  --color-surface-2: #eff0f3;   /* raised / hover / inputs */
+  --color-border: #e1e2e8;
+  --color-text: #15151e;
+  --color-muted: #5d606b;
 
   --color-f1: #e10600;          /* brand red */
-  --color-accent: #00d2be;      /* teal accent (data highlights) */
-  --color-warn: #ffb800;
-  --color-ok: #2ecc71;
-  --color-info: #3fa9f5;
+  --color-on-f1: #ffffff;       /* text on red */
+  --color-carbon: #15151e;      /* always-dark panels (timing tower, 3D scenes) */
+  --color-accent: #00897b;      /* teal accent (data highlights) */
+  --color-warn: #b26a00;
+  --color-ok: #1e8a4c;
+  --color-info: #1f6fd1;
 
   /* tyre compounds */
   --color-tyre-soft: #ff3333;
   --color-tyre-medium: #ffd700;
-  --color-tyre-hard: #f0f0f0;
+  --color-tyre-hard: #a9adb8;   /* white compound: silver on light backgrounds */
   --color-tyre-inter: #39b54a;
   --color-tyre-wet: #0072c6;
 }
 
-html, body, #root { height: 100%; }
-body {
-  margin: 0;
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
+/* Dark palette — same type and shapes, carbon colours. Also applied to any subtree with .theme-dark
+   (3D scenes, wind tunnel, live track map stay dark in both modes). */
+@layer base {
+  [data-theme="dark"], .theme-dark {
+    --color-bg: #101016;
+    --color-surface: #181821;
+    --color-surface-2: #20202b;
+    --color-border: #2a2b37;
+    --color-text: #f2f2f5;
+    --color-muted: #9b9eab;
+    --color-f1: #f01c12;
+    --color-accent: #00d2be;
+    --color-warn: #ffb800;
+    --color-ok: #2ecc71;
+    --color-info: #3fa9f5;
+    --color-tyre-hard: #f0f0f0;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --color-bg: #101016;
+      --color-surface: #181821;
+      --color-surface-2: #20202b;
+      --color-border: #2a2b37;
+      --color-text: #f2f2f5;
+      --color-muted: #9b9eab;
+      --color-f1: #f01c12;
+      --color-accent: #00d2be;
+      --color-warn: #ffb800;
+      --color-ok: #2ecc71;
+      --color-info: #3fa9f5;
+      --color-tyre-hard: #f0f0f0;
+      color-scheme: dark;
+    }
+  }
+  .theme-dark { color: var(--color-text); }
+
+  html, body, #root { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--color-f1); color: var(--color-on-f1); }
+  :focus-visible { outline: 2px solid var(--color-f1); outline-offset: 2px; }
 }
-::selection { background: var(--color-f1); color: white; }
+
+/* Wide cut of Archivo for titles (closest free match to the F1 display face). */
+@utility font-wide {
+  font-family: var(--font-display);
+  font-stretch: 125%;
+}

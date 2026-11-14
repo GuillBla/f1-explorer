@@ -21,11 +21,19 @@ recharts, d3, motion, lucide-react, clsx, date-fns. Alias `@/` → `src/`.
 - Modules : `live`, `tech`, `predictions`, `circuits`, `history`. Chaque module ne modifie **que** son dossier
   (et `public/data/<module>/`).
 
-## Couleurs / style
-Utiliser les classes de tokens : `bg-bg`, `bg-surface`, `bg-surface-2`, `border-border`, `text-text`, `text-muted`,
-`text-f1`/`bg-f1` (rouge), `text-accent`, `text-warn`, `text-ok`, `text-info`. Polices `font-sans` (Titillium Web), `font-mono`.
-Composants partagés : `Page`, `PageHeader`, `Card`, `Loader`, `ErrorState`, `Badge`, `TeamStripe` (`@/components/ui`).
-Couleurs pneus : `TYRE_COLORS` (`@/lib/api`). Responsive mobile obligatoire.
+## Thème « Paddock » (clair par défaut + sombre)
+- Tokens dans `src/index.css` : valeurs claires dans `@theme`, valeurs sombres sous `[data-theme="dark"]`, sous `.theme-dark`
+  et sous `prefers-color-scheme: dark`. Bouton clair/sombre dans l'en-tête (`useTheme` dans `@/lib/theme`, stocké en localStorage).
+- **Ne jamais coder une couleur d'interface en dur** : utiliser les classes de tokens (`bg-bg`, `bg-surface`, `bg-surface-2`,
+  `border-border`, `text-text`, `text-muted`, `text-f1`/`bg-f1`, `text-on-f1`, `bg-carbon`, `text-accent`, `text-warn`,
+  `text-ok`, `text-info`) ou `var(--color-*)` (fonctionne aussi dans les props SVG / recharts). Variante Tailwind `dark:` disponible.
+  Pour canvas / three.js qui ont besoin de valeurs littérales : `useThemeColors()` (`@/lib/theme`).
+- Les scènes 3D, la soufflerie et les fonds de carte « instrument » restent sombres : envelopper dans `.theme-dark`.
+- Typo : Archivo partout (`font-sans`), titres en version large avec `font-wide font-extrabold`, chiffres en `font-mono`
+  (JetBrains Mono). `font-black` est plafonné à 800. Rouge F1 réservé à la marque, aux actions principales et aux alertes.
+- Logo « Damier » : `@/components/Logo`. Composants partagés : `Page`, `PageHeader`, `Card`, `Loader`, `ErrorState`, `Badge`,
+  `TeamStripe` (`@/components/ui`). Couleurs pneus : `TYRE_COLORS` (`@/lib/api`, Dur = `var(--color-tyre-hard)`).
+- Responsive mobile obligatoire.
 
 ## API
 - `fetchJson` (`@/lib/api/http`) : cache mémoire + file d'attente par hôte (OpenF1/Jolpica renvoient des 429). Toujours l'utiliser.
