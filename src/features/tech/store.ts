@@ -13,11 +13,27 @@ interface ExplorerState {
   autoRotate: boolean
   /** Incremented to ask the camera rig to go back to the overview. */
   resetToken: number
-  setHovered: (id: PartId | null) => void
+  /** Selected sub-component of the selected part (e.g. 'fw.flap1'), see content/parts.ts SUBS. */
+  sub: string | null
+  /** Hovered sub-component (of `hovered`). */
+  hoveredSub: string | null
+  /** Isolation mode: everything but the selection fades out. */
+  isolate: boolean
+  /** 2026 active aero: Z = corner mode (flaps closed, max downforce), X = straight-line mode (flaps open). */
+  aeroMode: 'Z' | 'X'
+  /** Demo speed of the explorer car, km/h (wheel rotation). */
+  demoSpeed: number
+  /** Front wheel steering angle, degrees (+ = left turn). */
+  steer: number
+  setHovered: (id: PartId | null, sub?: string | null) => void
   select: (id: PartId | null) => void
+  selectSub: (id: PartId, sub: string | null) => void
   toggleExploded: () => void
   toggleXray: () => void
   toggleAutoRotate: () => void
+  toggleIsolate: () => void
+  setAeroMode: (m: 'Z' | 'X') => void
+  setDemo: (patch: { demoSpeed?: number; steer?: number }) => void
   resetView: () => void
 }
 
@@ -28,12 +44,22 @@ export const useExplorerStore = create<ExplorerState>((set) => ({
   xray: false,
   autoRotate: false,
   resetToken: 0,
-  setHovered: (hovered) => set({ hovered }),
-  select: (selected) => set({ selected, autoRotate: false }),
+  sub: null,
+  hoveredSub: null,
+  isolate: false,
+  aeroMode: 'Z',
+  demoSpeed: 0,
+  steer: 0,
+  setHovered: (hovered, sub) => set({ hovered, hoveredSub: hovered ? (sub ?? null) : null }),
+  select: (selected) => set({ selected, sub: null, autoRotate: false }),
+  selectSub: (selected, sub) => set({ selected, sub, autoRotate: false }),
   toggleExploded: () => set((s) => ({ exploded: !s.exploded })),
   toggleXray: () => set((s) => ({ xray: !s.xray })),
   toggleAutoRotate: () => set((s) => ({ autoRotate: !s.autoRotate })),
-  resetView: () => set((s) => ({ selected: null, resetToken: s.resetToken + 1 })),
+  toggleIsolate: () => set((s) => ({ isolate: !s.isolate })),
+  setAeroMode: (aeroMode) => set({ aeroMode }),
+  setDemo: (patch) => set(patch),
+  resetView: () => set((s) => ({ selected: null, sub: null, resetToken: s.resetToken + 1 })),
 }))
 
 /* ------------------------------------------------------------------ */

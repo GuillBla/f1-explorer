@@ -80,7 +80,7 @@ export function computeAero({ speedKmh, open, rideHeightMm }: AeroInputs): AeroO
   // centre of pressure of the floor moves forward when the car is lower (pitch sensitivity)
   const floorX = -0.3 + 0.008 * (30 - rideHeightMm)
   const front =
-    clA.frontWing * frontShare(2.55) + clA.floor * frontShare(floorX) + clA.rearWing * frontShare(-2.3) + clA.body * frontShare(0)
+    clA.frontWing * frontShare(2.68) + clA.floor * frontShare(floorX) + clA.rearWing * frontShare(-2.33) + clA.body * frontShare(0)
   const cdA = 0.45 /* body */ + 0.22 /* wheels */ + (open ? 0.08 : 0.28) + (open ? 0.04 : 0.07) + 0.02 * clA.floor
   const downforceN = q * totalCl
   const dragN = q * cdA

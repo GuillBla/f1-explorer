@@ -3,7 +3,7 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import type * as THREE from 'three'
 import { useExplorerStore } from '../store'
 import type { PartId, Vec3 } from '../types'
-import { applyVisualState, cloneSet, createMatSet, createPuSet, disposeSet, type MatSet, type PuSet } from './materials'
+import { applyVisualState, cloneSet, createMatSet, createPuSet, disposeSet, MatBank, type MatKey, type MatSet, type PuSet, type VisualState } from './materials'
 
 /* ------------------------------------------------------------------ */
 /* Car-wide context                                                    */
@@ -20,6 +20,8 @@ export interface CarContextValue {
   wingsOpen: RefObject<number>
   /** Wheel angular speed (rad/s). */
   wheelSpin: RefObject<number>
+  /** Front wheel steering angle, radians (animated, + = left). */
+  steer?: RefObject<number>
   /** Whole car rendered as a translucent ghost (following car in the wind tunnel). */
   ghost: boolean
 }
@@ -69,17 +71,58 @@ export function useGeometries<T extends Record<string, Disposable>>(factory: () 
 }
 
 /* ------------------------------------------------------------------ */
-/* Part: per-component materials, hover / select, registry             */
+/* Registries (camera framing)                                         */
 /* ------------------------------------------------------------------ */
 
 /** Object3D of each part, used by the camera rig to frame a selection. */
 export const partRegistry = new Map<PartId, THREE.Object3D>()
+/** "Primary" instances of each sub-component (e.g. the right front tyre for 'wh.tyre'). */
+export const subRegistry = new Map<string, Set<THREE.Object3D>>()
 
-interface PartMats {
+/* ------------------------------------------------------------------ */
+/* Visual state (hover / selection / x-ray / isolation)                */
+/* ------------------------------------------------------------------ */
+
+const NONE: VisualState = { hovered: false, selected: false, ghost: false }
+
+/**
+ * Visual state of a part (sub = null) or of one of its sub-components. Encoded as a short string in
+ * the store selector so components only re-render when their own state changes.
+ */
+function useVisual(partId: PartId, sub: string | null, interactive: boolean, ghostCar: boolean): VisualState {
+  const code = useExplorerStore((s) => {
+    if (!interactive) return ghostCar ? 'g' : ''
+    const isPu = partId === 'powerUnit'
+    const hov = s.hovered === partId && (sub === null || s.hoveredSub === sub)
+    const sel = s.selected === partId && (sub === null || s.sub === null || s.sub === sub)
+    const inFocus = s.sub ? sub === s.sub || (sub === null && s.selected === partId) : s.selected === partId
+    const iso = s.isolate && s.selected !== null && !inFocus
+    const xr = s.xray && !isPu && !(s.isolate && inFocus && s.selected !== null)
+    return `${hov ? 'h' : ''}${sel ? 's' : ''}${iso ? 'i' : ''}${xr ? 'x' : ''}`
+  })
+  return useMemo<VisualState>(() => {
+    if (code === '') return NONE
+    if (code === 'g') return { hovered: false, selected: false, ghost: true, ghostOpacity: 0.22 }
+    const iso = code.includes('i')
+    return {
+      hovered: code.includes('h'),
+      selected: code.includes('s'),
+      ghost: iso || code.includes('x'),
+      ghostOpacity: iso ? 0.06 : undefined,
+    }
+  }, [code])
+}
+
+/* ------------------------------------------------------------------ */
+/* Part: per-component materials, hover / select, registry             */
+/* ------------------------------------------------------------------ */
+
+interface PartCtx {
+  partId: PartId
   mats: MatSet
   pu: PuSet | null
 }
-const PartContext = createContext<PartMats | null>(null)
+const PartContext = createContext<PartCtx | null>(null)
 
 export function useMats(): MatSet {
   const c = useContext(PartContext)
@@ -93,32 +136,43 @@ export function usePuMats(): PuSet {
   return c.pu
 }
 
+/** Nearest sub-component id of an intersected object (walks up to the part group). */
+function findSub(o: THREE.Object3D | null, stop: THREE.Object3D | null): string | null {
+  while (o && o !== stop) {
+    const s = o.userData?.sub as string | undefined
+    if (s) return s
+    o = o.parent
+  }
+  return null
+}
+
+/** Ghosted objects (x-ray bodywork, isolation) let pointer events through to what is behind. */
+function isGhosted(o: THREE.Object3D) {
+  const mat = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined
+  const m = Array.isArray(mat) ? mat[0] : mat
+  return !!m?.userData?.ghost
+}
+
 export function Part({ id, children }: { id: PartId; children: ReactNode }) {
   const { interactive, base, basePu, ghost: ghostCar } = useCar()
   const isPu = id === 'powerUnit'
-  const value = useMemo<PartMats>(
-    () => ({ mats: cloneSet(base), pu: isPu ? cloneSet(basePu) : null }),
-    [base, basePu, isPu],
-  )
+  const bank = useMemo(() => new MatBank<MatKey>(base), [base])
+  const pu = useMemo(() => (isPu ? cloneSet(basePu) : null), [basePu, isPu])
   useEffect(
     () => () => {
-      disposeSet(value.mats)
-      if (value.pu) disposeSet(value.pu)
+      bank.dispose()
+      if (pu) disposeSet(pu)
     },
-    [value],
+    [bank, pu],
   )
+  const value = useMemo<PartCtx>(() => ({ partId: id, mats: bank.set, pu }), [id, bank, pu])
 
-  const hovered = useExplorerStore((s) => interactive && s.hovered === id)
-  const selected = useExplorerStore((s) => interactive && s.selected === id)
-  const xray = useExplorerStore((s) => interactive && s.xray)
-  const setHovered = useExplorerStore((s) => s.setHovered)
-  const select = useExplorerStore((s) => s.select)
-
+  const vis = useVisual(id, null, interactive, ghostCar)
   useEffect(() => {
-    const ghost = (xray && !isPu) || ghostCar
-    applyVisualState(value.mats, { hovered, selected, ghost, ghostOpacity: ghostCar ? 0.22 : undefined })
-    if (value.pu) applyVisualState(value.pu, { hovered, selected, ghost: false })
-  }, [value, hovered, selected, xray, isPu, ghostCar])
+    bank.apply(vis)
+    // PU internals never ghost with x-ray (useVisual excludes them), only in isolation
+    if (pu) applyVisualState(pu, vis)
+  }, [bank, pu, vis])
 
   const ref = useRef<THREE.Group>(null)
   useEffect(() => {
@@ -130,33 +184,68 @@ export function Part({ id, children }: { id: PartId; children: ReactNode }) {
     }
   }, [id, interactive])
 
-  // In x-ray mode the ghosted bodywork lets the events through to the power unit.
-  const passThrough = () => useExplorerStore.getState().xray && !isPu
-
   const handlers = interactive
     ? {
         onPointerOver: (e: ThreeEvent<PointerEvent>) => {
-          if (passThrough()) return
+          if (isGhosted(e.object)) return
           e.stopPropagation()
-          setHovered(id)
+          useExplorerStore.getState().setHovered(id, findSub(e.object, ref.current))
           document.body.style.cursor = 'pointer'
         },
         onPointerOut: (e: ThreeEvent<PointerEvent>) => {
-          if (passThrough()) return
+          if (isGhosted(e.object)) return
           e.stopPropagation()
-          if (useExplorerStore.getState().hovered === id) setHovered(null)
+          const st = useExplorerStore.getState()
+          if (st.hovered === id && st.hoveredSub === findSub(e.object, ref.current)) st.setHovered(null)
           document.body.style.cursor = ''
         },
         onClick: (e: ThreeEvent<MouseEvent>) => {
-          if (passThrough()) return
+          if (isGhosted(e.object)) return
           e.stopPropagation()
-          select(id)
+          const sub = findSub(e.object, ref.current)
+          const st = useExplorerStore.getState()
+          if (sub) st.selectSub(id, sub)
+          else st.select(id)
         },
       }
     : {}
 
   return (
     <group ref={ref} name={id} {...handlers}>
+      <PartContext.Provider value={value}>{children}</PartContext.Provider>
+    </group>
+  )
+}
+
+/**
+ * Clickable sub-component of a part (e.g. the front wing flap). Owns its materials so it can be
+ * highlighted, isolated or ghosted on its own. `primary` instances are used to frame the camera
+ * (e.g. only the right front tyre among the four).
+ */
+export function Sub({ id, children, primary = true }: { id: string; children: ReactNode; primary?: boolean }) {
+  const parent = useContext(PartContext)
+  if (!parent) throw new Error('<Sub> must be used inside <Part>')
+  const { interactive, base, ghost: ghostCar } = useCar()
+  const bank = useMemo(() => new MatBank<MatKey>(base), [base])
+  useEffect(() => () => bank.dispose(), [bank])
+  const vis = useVisual(parent.partId, id, interactive, ghostCar)
+  useEffect(() => bank.apply(vis), [bank, vis])
+  const value = useMemo<PartCtx>(() => ({ ...parent, mats: bank.set }), [parent, bank])
+
+  const ref = useRef<THREE.Group>(null)
+  useEffect(() => {
+    const obj = ref.current
+    if (!interactive || !primary || !obj) return
+    let set = subRegistry.get(id)
+    if (!set) subRegistry.set(id, (set = new Set()))
+    set.add(obj)
+    return () => {
+      set.delete(obj)
+    }
+  }, [id, interactive, primary])
+
+  return (
+    <group ref={ref} userData={{ sub: id }}>
       <PartContext.Provider value={value}>{children}</PartContext.Provider>
     </group>
   )
@@ -177,5 +266,9 @@ export function Explode({ dir, children, position }: { dir: Vec3; children: Reac
     const e = explode.current ?? 0
     g.position.set(p0[0] + dir[0] * e, p0[1] + dir[1] * e, p0[2] + dir[2] * e)
   })
-  return <group ref={ref}>{children}</group>
+  return (
+    <group ref={ref} position={p0}>
+      {children}
+    </group>
+  )
 }

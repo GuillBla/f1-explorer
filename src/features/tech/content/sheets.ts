@@ -91,6 +91,7 @@ export const ERS_ERAS: ErsEra[] = [
       'Sans MGU-H, toute l’énergie électrique vient du freinage (et du moteur thermique qui peut entraîner le MGU-K en générateur).',
       'Carburant 100 % durable, débit limité en énergie (3000 MJ/h).',
       'Pour dépasser : le « Manual Override Mode » donne un surplus d’énergie électrique à moins d’une seconde d’un adversaire.',
+      'Animation 3D des flux d’énergie (freinage, déploiement, Override) : onglet « Mécanique », système MGU-K & batterie.',
     ],
   },
 ]

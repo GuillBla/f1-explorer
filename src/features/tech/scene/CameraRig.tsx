@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
-import { partRegistry } from '../parts/Part'
+import { partRegistry, subRegistry } from '../parts/Part'
 import { useExplorerStore } from '../store'
 import type { PartId, Vec3 } from '../types'
 
@@ -34,6 +34,7 @@ export function CameraRig() {
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
   const selected = useExplorerStore((s) => s.selected)
+  const sub = useExplorerStore((s) => s.sub)
   const resetToken = useExplorerStore((s) => s.resetToken)
   const anim = useRef<Anim | null>(null)
 
@@ -50,22 +51,31 @@ export function CameraRig() {
     if (!selected || !controls) return
     // wait one frame so exploded offsets / visibility are up to date
     const id = requestAnimationFrame(() => {
-      const obj = partRegistry.get(selected)
-      if (!obj) return
-      const box = new THREE.Box3().setFromObject(obj)
+      const box = new THREE.Box3()
+      const subs = sub ? subRegistry.get(sub) : undefined
+      if (subs && subs.size > 0) for (const o of subs) box.expandByObject(o)
+      else {
+        const obj = partRegistry.get(selected)
+        if (!obj) return
+        box.setFromObject(obj)
+      }
       if (box.isEmpty()) return
       const center = box.getCenter(new THREE.Vector3())
       const radius = box.getSize(new THREE.Vector3()).length() / 2
       const fov = THREE.MathUtils.degToRad(camera.fov)
-      const dist = THREE.MathUtils.clamp((radius / Math.sin(fov / 2)) * 0.95, 1.4, 9)
-      const pref = PREFERRED_DIR[selected]
+      const dist = THREE.MathUtils.clamp((radius / Math.sin(fov / 2)) * 1.05, sub ? 1.0 : 1.4, 9)
+      const pref = sub ? undefined : PREFERRED_DIR[selected]
       const dir = pref ? new THREE.Vector3(...pref) : camera.position.clone().sub(controls.target)
-      if (!pref) dir.y = Math.max(dir.y, dir.length() * 0.25)
+      if (!pref) {
+        dir.y = Math.max(dir.y, dir.length() * 0.25)
+        // look at lateral elements from their own side
+        if (Math.abs(center.z) > 0.3 && Math.sign(dir.z) !== Math.sign(center.z)) dir.z = -dir.z
+      }
       dir.normalize()
       anim.current = { pos: center.clone().addScaledVector(dir, dist), target: center, t: 0 }
     })
     return () => cancelAnimationFrame(id)
-  }, [selected, controls, camera])
+  }, [selected, sub, controls, camera])
 
   useEffect(() => {
     if (resetToken === 0) return

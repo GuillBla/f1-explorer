@@ -72,7 +72,8 @@ function sdWheel(px: number, py: number, pz: number, cx: number, cz: number, r: 
   return Math.min(Math.max(dx, dz), 0) + Math.hypot(Math.max(dx, 0), Math.max(dz, 0))
 }
 
-const RAMP_ANGLE = Math.atan2(0.34 - 0.07, 1.95 - 1.0)
+// diffuser ramp of the 2026 model (parts/Underbody.tsx FLOOR_ST): roof 0.078 m at x = −1.02 → 0.265 m at x = −1.95
+const RAMP_ANGLE = Math.atan2(0.265 - 0.078, 1.95 - 1.02)
 const RAMP_C = Math.cos(RAMP_ANGLE)
 const RAMP_S = Math.sin(RAMP_ANGLE)
 
@@ -80,15 +81,15 @@ const RAMP_S = Math.sin(RAMP_ANGLE)
 
 /** Height of the floor ceiling (y) above which the underfloor channel ends. NaN outside the floor. */
 function floorCeiling(x: number) {
-  if (x > 1.3 || x < -1.95) return NaN
-  if (x > 0.8) return 0.075 + ((x - 0.8) / 0.5) * 0.065 // inlet
-  if (x > -1.0) return 0.075 // throat
-  return 0.075 + ((-1.0 - x) / 0.95) * 0.265 // diffuser
+  if (x > 1.32 || x < -1.95) return NaN
+  if (x > 0.5) return 0.075 + ((x - 0.5) / 0.82) * 0.125 // short 2026 inlet
+  if (x > -1.02) return 0.075 // long flat throat
+  return 0.078 + ((-1.02 - x) / 0.93) * 0.187 // smaller 2026 diffuser
 }
 function floorHalfWidth(x: number) {
-  if (x > 0.9) return 0.3 + ((1.3 - x) / 0.4) * 0.45
-  if (x > -1.0) return 0.78
-  return 0.5
+  if (x > 0.8) return 0.4 + ((1.32 - x) / 0.52) * 0.355
+  if (x > -1.02) return 0.765
+  return 0.52
 }
 
 export class FlowField {
@@ -146,17 +147,17 @@ export class FlowField {
     const mirror = (pts: V3[]) => pts.map((p) => [p[0], p[1], -p[2]] as V3)
     const rev = (pts: V3[]) => pts.slice().reverse()
 
-    // Front wing, right horseshoe: far → tip (z=+0.88) → bound (dir −z) → inner end (z=+0.25) → far (Y250)
+    // Front wing, right horseshoe: far → tip (z=+0.86) → bound (dir −z) → inner end (z=+0.25) → far (Y250)
     poly(rev(FW_TIP), gFw, 0.06)
-    add([FW_X, FW_Y, 0.88], [FW_X, FW_Y, 0.25], gFw, 0.05)
+    add([FW_X, FW_Y, 0.86], [FW_X, FW_Y, 0.25], gFw, 0.05)
     poly(FW_INNER, gFw, 0.05)
     // left horseshoe (mirror, with reversed orientation to keep the same rotation sense)
     poly(rev(mirror(FW_INNER)), gFw, 0.05)
-    add([FW_X, FW_Y, -0.25], [FW_X, FW_Y, -0.88], gFw, 0.05)
+    add([FW_X, FW_Y, -0.25], [FW_X, FW_Y, -0.86], gFw, 0.05)
     poly(mirror(FW_TIP), gFw, 0.06)
     // Rear wing horseshoe
     poly(rev(RW_TIP), gRw, 0.08)
-    add([RW_X, RW_Y, 0.5], [RW_X, RW_Y, -0.5], gRw, 0.06)
+    add([RW_X, RW_Y, 0.49], [RW_X, RW_Y, -0.49], gRw, 0.06)
     poly(mirror(RW_TIP), gRw, 0.08)
 
     this.segs = new Float32Array(list)
@@ -168,26 +169,27 @@ export class FlowField {
   /** Union SDF of the simplified car (car-local coordinates). */
   sdf(x: number, y: number, z: number): number {
     const open = this.cfg.open
-    let d = sdTaper(x, y, z, [2.78, 0.18, 0], [1.7, 0.3, 0], 0.04, 0.17) // nose
-    d = Math.min(d, sdTaper(x, y, z, [1.7, 0.3, 0], [-0.1, 0.36, 0], 0.17, 0.29)) // monocoque
-    d = Math.min(d, sdTaper(x, y, z, [-0.1, 0.64, 0], [-1.95, 0.39, 0], 0.3, 0.08)) // engine cover
-    d = Math.min(d, sdTaper(x, y, z, [0.13, 0.7, 0], [0.13, 0.72, 0], 0.13, 0.13)) // helmet
+    // shapes follow the 2026 model (parts/shapes.ts, Underbody.tsx, FrontWing.tsx, RearWing.tsx)
+    let d = sdTaper(x, y, z, [2.83, 0.18, 0], [2.15, 0.26, 0], 0.03, 0.12) // high, slim nose
+    d = Math.min(d, sdTaper(x, y, z, [2.15, 0.26, 0], [-0.1, 0.37, 0], 0.12, 0.29)) // monocoque
+    d = Math.min(d, sdTaper(x, y, z, [-0.1, 0.66, 0], [-1.95, 0.38, 0], 0.28, 0.06)) // engine cover / airbox
+    d = Math.min(d, sdTaper(x, y, z, [0.13, 0.76, 0], [0.13, 0.77, 0], 0.13, 0.13)) // helmet
     const az = Math.abs(z)
-    d = Math.min(d, sdTaper(x, y, az, [0.5, 0.37, 0.5], [-1.4, 0.2, 0.3], 0.22, 0.05)) // sidepods
-    d = Math.min(d, sdBox(x, y, z, 0.125, 0.085, 0, 1.125, 0.015, 0.79)) // floor
+    d = Math.min(d, sdTaper(x, y, az, [0.5, 0.42, 0.42], [-1.4, 0.19, 0.2], 0.17, 0.05)) // sidepods (undercut below)
+    d = Math.min(d, sdBox(x, y, z, 0.15, 0.0575, 0, 1.17, 0.0175, 0.765)) // floor
     // diffuser ramp (rotated box)
     {
-      const lx = x + 1.475
-      const ly = y - 0.205
+      const lx = x + 1.485
+      const ly = y - 0.172
       const rx = lx * RAMP_C - ly * RAMP_S
       const ry = lx * RAMP_S + ly * RAMP_C
-      d = Math.min(d, sdBox(rx, ry, z, 0, 0, 0, 0.495, 0.012, 0.5))
+      d = Math.min(d, sdBox(rx, ry, z, 0, 0, 0, 0.475, 0.012, 0.52))
     }
-    d = Math.min(d, sdWheel(x, y, az, DIMS.frontAxleX, DIMS.trackZ, DIMS.tyreRF, DIMS.tyreWF / 2))
-    d = Math.min(d, sdWheel(x, y, az, DIMS.rearAxleX, DIMS.trackZ, DIMS.tyreRR, DIMS.tyreWR / 2))
-    d = Math.min(d, sdBox(x, y, z, 2.58, 0.13, 0, 0.29, 0.05, 0.9)) // front wing
-    d = Math.min(d, sdBox(x, y, z, -2.32, 0.9, 0, 0.25, open ? 0.035 : 0.075, 0.5)) // rear wing
-    d = Math.min(d, sdBox(x, y, az, -2.3, 0.73, 0.5, 0.3, 0.28, 0.006)) // rear endplates
+    d = Math.min(d, sdWheel(x, y, az, DIMS.frontAxleX, DIMS.trackZF, DIMS.tyreRF, DIMS.tyreWF / 2))
+    d = Math.min(d, sdWheel(x, y, az, DIMS.rearAxleX, DIMS.trackZR, DIMS.tyreRR, DIMS.tyreWR / 2))
+    d = Math.min(d, sdBox(x, y, z, 2.685, open ? 0.12 : 0.14, 0, 0.27, open ? 0.05 : 0.07, 0.86)) // front wing (flaps flatten in X mode)
+    d = Math.min(d, sdBox(x, y, z, -2.33, 0.85, 0, 0.26, open ? 0.045 : 0.09, 0.49)) // rear wing (no beam wing in 2026)
+    d = Math.min(d, sdBox(x, y, az, -2.3, 0.79, 0.497, 0.31, 0.18, 0.006)) // rear endplates
     return d
   }
 
@@ -351,11 +353,11 @@ export class FlowField {
 
 /* ---------------- vortex geometry (car-local, right side) ---------------- */
 
-const FW_X = 2.6
+const FW_X = 2.68
 const FW_Y = 0.12
 /** Front wing tip vortex, from the endplate, pushed outboard around the front tyre. */
 const FW_TIP: V3[] = [
-  [FW_X, FW_Y + 0.02, 0.88],
+  [FW_X, FW_Y + 0.02, 0.86],
   [2.1, 0.26, 1.0],
   [1.2, 0.33, 1.12],
   [-1.5, 0.4, 1.18],
@@ -370,9 +372,9 @@ const FW_INNER: V3[] = [
   [-9, 0.12, 0.95],
 ]
 const RW_X = -2.3
-const RW_Y = 0.9
+const RW_Y = 0.86
 const RW_TIP: V3[] = [
-  [RW_X, RW_Y + 0.05, 0.5],
+  [RW_X, RW_Y + 0.06, 0.49],
   [-3.5, 1.0, 0.47],
   [-9, 1.18, 0.42],
 ]

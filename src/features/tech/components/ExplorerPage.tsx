@@ -1,18 +1,36 @@
 import { lazy, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import clsx from 'clsx'
-import { Crosshair, Expand, MousePointerClick, RotateCw, ScanEye } from 'lucide-react'
-import { PART_ORDER, PARTS } from '../content/parts'
+import { Crosshair, Expand, Focus, MousePointerClick, RotateCw, ScanEye } from 'lucide-react'
+import { PART_ORDER, PARTS, SUBS } from '../content/parts'
 import { useExplorerStore } from '../store'
 import { CanvasShell } from './CanvasShell'
 import { CarFallback2D } from './CarFallback2D'
-import { ToggleButton } from './controls'
+import { Segmented, ToggleButton } from './controls'
 import { PartPanel } from './PartPanel'
 
 const ExplorerScene = lazy(() => import('../scene/ExplorerScene'))
 
 export default function ExplorerPage() {
-  const { selected, exploded, xray, autoRotate, select, toggleExploded, toggleXray, toggleAutoRotate, resetView } = useExplorerStore()
+  const {
+    selected,
+    sub,
+    exploded,
+    xray,
+    autoRotate,
+    isolate,
+    aeroMode,
+    demoSpeed,
+    steer,
+    select,
+    toggleExploded,
+    toggleXray,
+    toggleAutoRotate,
+    toggleIsolate,
+    setAeroMode,
+    setDemo,
+    resetView,
+  } = useExplorerStore()
 
   // clean up global cursor / hover when leaving the page
   useEffect(
@@ -32,6 +50,9 @@ export default function ExplorerPage() {
         <ToggleButton active={xray} onClick={toggleXray} icon={<ScanEye size={16} />} title="Carrosserie transparente : voir le groupe propulseur">
           Rayons X
         </ToggleButton>
+        <ToggleButton active={isolate} onClick={toggleIsolate} icon={<Focus size={16} />} title="Estompe tout sauf l’élément sélectionné">
+          Isoler
+        </ToggleButton>
         <ToggleButton active={autoRotate} onClick={toggleAutoRotate} icon={<RotateCw size={16} />}>
           Rotation
         </ToggleButton>
@@ -39,7 +60,53 @@ export default function ExplorerPage() {
           Recentrer
         </ToggleButton>
         <span className="ml-auto hidden items-center gap-1.5 text-xs text-muted md:inline-flex">
-          <MousePointerClick size={14} /> Survolez puis cliquez un composant · glisser pour tourner · molette / pincer pour zoomer
+          <MousePointerClick size={14} /> Survolez puis cliquez un élément · glisser pour tourner · molette / pincer pour zoomer
+        </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-border bg-surface p-2.5 text-sm">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold">Aéro active</span>
+          <Segmented
+            label="Mode d’aérodynamique active"
+            value={aeroMode}
+            onChange={setAeroMode}
+            options={[
+              { value: 'Z', label: 'Mode Z · virage' },
+              { value: 'X', label: 'Mode X · ligne droite' },
+            ]}
+          />
+        </div>
+        <label className="flex items-center gap-2">
+          <span className="font-semibold">Vitesse</span>
+          <input
+            type="range"
+            min={0}
+            max={80}
+            step={5}
+            value={demoSpeed}
+            onChange={(e) => setDemo({ demoSpeed: Number(e.target.value) })}
+            className="w-28 accent-[var(--color-f1)]"
+            aria-label="Vitesse de démonstration (rotation des roues)"
+          />
+          <span className="w-16 font-mono text-xs text-accent">{demoSpeed} km/h</span>
+        </label>
+        <label className="flex items-center gap-2">
+          <span className="font-semibold">Braquage</span>
+          <input
+            type="range"
+            min={-20}
+            max={20}
+            step={1}
+            value={steer}
+            onChange={(e) => setDemo({ steer: Number(e.target.value) })}
+            className="w-28 accent-[var(--color-f1)]"
+            aria-label="Angle de braquage des roues avant"
+          />
+          <span className="w-10 font-mono text-xs text-accent">{steer}°</span>
+        </label>
+        <span className="text-xs text-muted">
+          {aeroMode === 'Z' ? 'Volets fermés : appui maximal en virage.' : 'Volets ouverts à l’avant et à l’arrière : moins de traînée en ligne droite.'}
         </span>
       </div>
 
@@ -70,7 +137,7 @@ export default function ExplorerPage() {
               transition={{ duration: 0.25 }}
               className="mt-4 lg:absolute lg:bottom-3 lg:right-3 lg:top-3 lg:mt-0 lg:w-[400px]"
             >
-              <PartPanel id={selected} onClose={() => select(null)} />
+              <PartPanel id={selected} sub={sub} onClose={() => select(null)} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -98,9 +165,10 @@ export default function ExplorerPage() {
   )
 }
 
-/** Name of the hovered part, following the pointer. */
+/** Name of the hovered element (part › sub-component), following the pointer. */
 function HoverLabel() {
   const hovered = useExplorerStore((s) => s.hovered)
+  const hoveredSub = useExplorerStore((s) => s.hoveredSub)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = ref.current
@@ -113,6 +181,7 @@ function HoverLabel() {
     parent.addEventListener('pointermove', move)
     return () => parent.removeEventListener('pointermove', move)
   }, [])
+  const subName = hoveredSub ? SUBS[hoveredSub]?.name : undefined
   return (
     <div
       ref={ref}
@@ -121,7 +190,14 @@ function HoverLabel() {
         hovered ? 'opacity-100' : 'opacity-0',
       )}
     >
-      {hovered ? PARTS[hovered].name : ''}
+      {hovered ? (
+        <>
+          <span className="text-muted">{PARTS[hovered].short}</span>
+          {subName && <span> › {subName}</span>}
+        </>
+      ) : (
+        ''
+      )}
     </div>
   )
 }
